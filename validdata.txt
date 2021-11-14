@@ -1,0 +1,311 @@
+  progressDialog.show(this,"Please wait..")
+            val accountNo :String = eAccountNum.text.toString().trim()
+            val ifsc :String = eIfsc.text.toString().trim()
+            val cAccountNo :String = eCAccountNum.text.toString().trim()
+
+            if (accountNo.isEmpty()&&cAccountNo.isEmpty()&&ifsc.isEmpty()){
+                accountLayout.error="Field cannot be empty"
+                cAccountLayout.error="Field cannot be empty"
+                ifscLayout.error="Field cannot be empty"
+            }else if (cAccountNo.isEmpty()&&ifsc.isEmpty()){
+                accountLayout.isErrorEnabled=false
+                cAccountLayout.error="Field cannot be empty"
+                ifscLayout.error="Field cannot be empty"
+            }else if (validateAccount()){
+                 if (validateCAccount()){
+                     if (validateIFSC()){
+                         val ifscCode : String = eIfsc.text.toString().trim()
+                         getBankDetails(ifscCode)
+
+                     }
+                 }
+            }
+
+
+
+
+
+
+
+ val mobile = intent.getStringExtra("mobile")
+            val accountNo :String = eAccountNum.text.toString().trim()
+            val ifsc :String = eIfsc.text.toString().trim()
+
+            rootNode = FirebaseDatabase.getInstance()
+            reference = rootNode.getReference("Users")
+
+            val accountHelper = AccountHelperClass(accountNo,ifsc)
+            mobile?.let { it1 -> reference.child(it1).child("Bank Details").setValue(accountHelper) }
+
+            progressDialog.dialog.dismiss()
+            startActivity(Intent(applicationContext,Registration3Activity::class.java))
+        
+
+
+
+
+
+
+
+
+
+    private fun validateIFSC(): Boolean {
+        val data:String = eIfsc.text.toString().trim()
+
+        return when {
+            data.isEmpty() -> {
+                progressDialog.dialog.dismiss()
+                ifscLayout.error="Field cannot be empty"
+                false
+            }
+            data.length <11 -> {
+                progressDialog.dialog.dismiss()
+                ifscLayout.error="Entered IFSC code is invalid"
+                false
+            }
+            !isValidIFSC()-> {
+                progressDialog.dialog.dismiss()
+                ifscLayout.error="Entered IFSC code is invalid"
+                false
+            }
+            else -> {
+                ifscLayout.isErrorEnabled=false
+                true
+            }
+        }
+
+    }
+
+    private fun isValidIFSC(): Boolean {
+        val ifscPattern = "^[A-Z]{4}0[A-Z0-9]{6}\$"
+        val pattern = Pattern.compile(ifscPattern)
+        val matcher = pattern.matcher(this.toString())
+        return matcher.matches()
+    }
+
+    private fun validateCAccount(): Boolean {
+
+        val data:String = eAccountNum.text.toString().trim()
+        return when {
+            data.isEmpty() -> {
+                progressDialog.dialog.dismiss()
+                accountLayout.error="Field cannot be empty"
+                false
+            }
+            data.length <10 -> {
+                progressDialog.dialog.dismiss()
+                accountLayout.error="Invalid account number"
+                false
+            }
+            else -> {
+                accountLayout.isErrorEnabled=false
+                true
+            }
+        }
+    }
+
+    private fun validateAccount(): Boolean {
+        val data:String = eAccountNum.text.toString().trim()
+        val data2:String = eCAccountNum.text.toString().trim()
+        return if (data.isEmpty()){
+            progressDialog.dialog.dismiss()
+            cAccountLayout.error="Field cannot be empty"
+            false
+        } else if (!data2.matches(data.toRegex())){
+            progressDialog.dialog.dismiss()
+            cAccountLayout.error="Account no is mismatch"
+            false
+        } else{
+            cAccountLayout.isErrorEnabled=false
+            true
+        }
+    }
+    @SuppressLint("UseCompatLoadingForDrawables")
+    private fun getBankDetails(ifsc : String) {
+        mRequestQueue.cache.clear()
+        val url = "http://api.techm.co.in/api/v1/ifsc/$ifsc"
+
+        val queue = Volley.newRequestQueue(this@Registration3Activity)
+
+        eIfsc.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence, start: Int, count: Int, after: Int) {
+
+            }
+
+            override fun onTextChanged(s: CharSequence, start: Int, count: Int, after: Int) {
+
+            }
+
+            override fun afterTextChanged(s: Editable) {
+                if (s.toString().trim().isNotEmpty()) {
+
+
+                    val ahReq = JsonObjectRequest(Request.Method.GET, url, null, { response ->
+                        val str = response.toString()
+                        Log.d("TAG", "response: $str")
+
+                        try {
+                            if (response.toString() == "failed") {
+                                progressDialog.dialog.dismiss()
+                                // checking if the response is not loaded and
+                                // status for the repose is fail.
+                                // if response status is failure we are displaying
+                                // an invalid IFSC code in our text view.
+                                ifscLayout.helperText = "Invalid IFSC Code"
+                            } else {
+                                // if the status is successful we are
+                                // extracting data from JSON file
+                                val dataObj = JSONObject("data")
+                                val bankName = dataObj.optString("BANK")
+                                val branch = dataObj.optString("BRANCH")
+
+                                // after extracting this data we are displaying
+                                // that data in our text view.
+                                ifscLayout.helperText = ("$bankName, $branch")
+                                ifscLayout.endIconDrawable=getDrawable(R.drawable.ic_check_circle)
+
+
+                                bottomSheetView.findViewById<View>(R.id.btn_upload_imgBottom_sheet).setOnClickListener {
+                                   val pictureDialog = AlertDialog.Builder(this@Registration3Activity)
+                                    pictureDialog.setTitle("Select Action")
+                                    val pictureDialogItem = arrayOf("Select photo from gallery",
+                                    "Capture photo from camera")
+                                    pictureDialog.setItems(pictureDialogItem){dialog,which->
+                                        when(which){
+                                            0 -> galleryCheckPermission()
+                                            1 -> cameraCheckPermission()
+                                        }
+                                    }
+                                    pictureDialog.show()
+                                }
+
+                                bottomSheetView.findViewById<View>(R.id.imgBottomSheet_cancel_btn).setOnClickListener {
+                                    bottomSheetDialog.dismiss()
+                                }
+                                bottomSheetDialog.setContentView(bottomSheetView)
+                                progressDialog.dialog.dismiss()
+                                bottomSheetDialog.show()
+
+                            }
+                        } catch (e: JSONException) {
+                            progressDialog.dialog.dismiss()
+                            // if we get any error while loading data
+                            // we are setting our text as invalid IFSC code.
+                            e.printStackTrace()
+                            ifscLayout.helperText = ("Invalid IFSC Code")
+                        }
+                    }, { error ->
+                        progressDialog.dialog.dismiss()
+                        ifscLayout.helperText = ("Invalid IFSC Code")
+                        Log.d("TAG", "response: ${error.message}")
+                    })
+                    queue.add(ahReq)
+                }
+            }
+        })
+
+    }
+
+    private fun  galleryCheckPermission(){
+        Dexter.withContext(this).withPermission(
+            android.Manifest.permission.READ_EXTERNAL_STORAGE
+        ).withListener(object : PermissionListener{
+            override fun onPermissionGranted(report: PermissionGrantedResponse?) {
+                gallery()
+            }
+
+            override fun onPermissionDenied(report: PermissionDeniedResponse?){
+                Toast.makeText(this@Registration3Activity,
+                    "You have denied the storage permission to select photo",Toast.LENGTH_LONG).show()
+
+                showRationaDialogForPermission()
+            }
+
+            override fun onPermissionRationaleShouldBeShown(
+                p0: PermissionRequest?,
+                p1: PermissionToken?
+            ) {
+                showRationaDialogForPermission()
+            }
+
+
+        }).onSameThread().check()
+    }
+    private fun gallery(){
+        val intent = Intent(Intent.ACTION_PICK)
+        intent.type = "image/*"
+        startActivityForResult(intent,Gallery_Request_Code)
+    }
+
+    private fun cameraCheckPermission(){
+        Dexter.withContext(this)
+            .withPermissions(android.Manifest.permission.READ_EXTERNAL_STORAGE,
+                     android.Manifest.permission.CAMERA).withListener(
+                object : MultiplePermissionsListener{
+                    override fun onPermissionsChecked(report: MultiplePermissionsReport?) {
+                        report?.let {
+                            if (report.areAllPermissionsGranted()){
+                                camera()
+                            }
+                        }
+                    }
+
+                    override fun onPermissionRationaleShouldBeShown(
+                        p0: MutableList<PermissionRequest>?,
+                        p1: PermissionToken?
+                    ) {
+                        showRationaDialogForPermission()
+                    }
+
+                }
+            ).onSameThread().check()
+
+    }
+
+    private fun camera(){
+        val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+        startActivityForResult(intent,Camera_Request_Code)
+
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+
+        if (resultCode==Activity.RESULT_OK){
+            when (requestCode){
+                Camera_Request_Code->{
+                    val bitmap = data?.extras?.get("data") as Bitmap
+
+                    bottomSheetView.findViewById<ImageView>(R.id.img_document_imgBottom_sheet).load(bitmap)
+
+                }
+                Gallery_Request_Code->{
+                    bottomSheetView.findViewById<ImageView>(R.id.img_document_imgBottom_sheet).load(data?.data)
+                }
+            }
+        }
+    }
+    private fun showRationaDialogForPermission(){
+        AlertDialog.Builder(this)
+            .setMessage("It looks like yu have turned off permission"
+            +"required for this feature. It can be enable under App settings!!!")
+            .setPositiveButton("Go To Settings"){_,_->
+                try {
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                    val uri = Uri.fromParts("package",packageName,null)
+                    intent.data = uri
+                    startActivity(intent)
+
+                }catch (e: ActivityNotFoundException){
+                    e.printStackTrace()
+                }
+            }
+            .setNegativeButton("Cancel"){dialog,_->
+                dialog.dismiss()
+            }.show()
+
+    }
+
+
+
+
